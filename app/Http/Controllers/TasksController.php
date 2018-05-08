@@ -5,8 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 
 use App\Http\Requests;
+use App\Task;
+use App\Http\Controllers\Controller;
 
-use App\Task;    // 追加
 
 
 class TasksController extends Controller
@@ -18,19 +19,36 @@ class TasksController extends Controller
      */
     public function index()
     {
-        $tasks = Task::all();
+         // ここをallではなく、今ログインしているユーザのものだけ取得するように修正する
+         // micropostsのMicropostsControllerのindexアクションを参照
+        $data = [];
+        if (\Auth::check()) {
+            $user = \Auth::user();
+            $tasks = $user->tasks()->orderBy('created_at', 'desc')->paginate(10);
 
-        return view('tasks.index', [
-            'tasks' => $tasks,
-        ]);
+            $data = [
+                'user' => $user,
+                'tasks' => $tasks,
+            ];
+            return view('tasks.index', $data);
+        }else {
+            return view('welcome');
+        }
+
     }
     public function show($id)
     {
         $task = Task::find($id);
-
+        // ここ↑で取得した$taskが持っているuser_idが、今ログインしているユーザのIDと一致するかを確認して、
+        // 一致していれば処理を進める(showの画面を出す)、一致していなければトップページにリダイレクトするなどの処理を加える
+        // 比較についてはMicropostsControllerのdestroyアクション内に似たようなコードがあるのでそちらを参照
+    if (\Auth::user()->id === $task->user_id){
         return view('tasks.show', [
             'task' => $task,
         ]);
+    }else{
+            return view('welcome');
+        }
     }
     public function create()
     {
@@ -47,12 +65,13 @@ class TasksController extends Controller
             'content' => 'required|max:191',
         ]);
         
-        $task = new Task;
-        $task->status = $request->status;    // 追加
-        $task->content = $request->content;
-        $task->save();
+        $request->user()->tasks()->create([
+            'content' => $request->content,
+            'status' => $request->status,
+        ]);
 
         return redirect('/');
+    
     }
     public function edit($id)
     {
